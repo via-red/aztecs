@@ -31,11 +31,17 @@ func NewProofOfWork(b *core.Block) *ProofOfWork {
 
 // prepareData prepares data for hashing
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
+	// 序列化交易数据
+	var txData []byte
+	for _, tx := range pow.block.Transactions {
+		txData = append(txData, []byte(tx.ID)...)
+	}
+
 	data := bytes.Join(
 		[][]byte{
 			IntToHex(pow.block.Index),
-			IntToHex(pow.block.Timestamp.Unix()), // Convert time to Unix timestamp
-			[]byte(pow.block.Data),
+			IntToHex(pow.block.Timestamp.Unix()),
+			txData, // 使用交易数据替代block.Data
 			[]byte(pow.block.PrevHash),
 			IntToHex(int64(nonce)),
 		},
@@ -50,7 +56,7 @@ func (pow *ProofOfWork) Run() (int, string) {
 	var hash [32]byte
 	nonce := 0
 
-	fmt.Printf("Mining a new block with data: \"%s\"\n", pow.block.Data)
+	fmt.Printf("Mining a new block with %d transactions\n", len(pow.block.Transactions))
 	for nonce < math.MaxInt64 {
 		data := pow.prepareData(nonce)
 

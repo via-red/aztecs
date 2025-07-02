@@ -51,11 +51,11 @@ func getBlockchain(c *gin.Context, bc *core.Blockchain) { // Accept Blockchain i
 
 // mineBlock handles the request to mine a new block
 func mineBlock(c *gin.Context, bc *core.Blockchain) { // Accept Blockchain instance
-	// Create a new block with placeholder data for now
-	newBlock := core.NewBlock(int64(len(bc.Blocks)), time.Now(), "Block mined via API", bc.Blocks[len(bc.Blocks)-1].Hash) // Need to import time
+	// Create a new block with empty transactions
+	newBlock := core.NewBlock(int64(len(bc.Blocks)), time.Now(), []*core.Transaction{}, bc.Blocks[len(bc.Blocks)-1].Hash)
 
 	// Perform Proof of Work
-	pow := consensus.NewProofOfWork(newBlock) // Need to import consensus
+	pow := consensus.NewProofOfWork(newBlock)
 	nonce, hash := pow.Run()
 
 	newBlock.Hash = hash
@@ -69,22 +69,32 @@ func mineBlock(c *gin.Context, bc *core.Blockchain) { // Accept Blockchain insta
 
 // createTransaction handles the request to create a new transaction
 func createTransaction(c *gin.Context, bc *core.Blockchain) { // Accept Blockchain instance
-	var tx core.Transaction // Assuming Transaction struct is in core package
-	if err := c.ShouldBindJSON(&tx); err != nil {
+	// 使用临时结构体接收前端数据
+	type TempTx struct {
+		From   string  `json:"fromAddress"`
+		To     string  `json:"toAddress"`
+		Amount float64 `json:"amount"`
+	}
+	
+	var tempTx TempTx
+	if err := c.ShouldBindJSON(&tempTx); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// TODO: Implement actual transaction validation (e.g., sufficient balance, valid signature)
+	// 创建实际交易对象（简化版）
+	tx := &core.Transaction{
+		Vin: []core.TxInput{
+			{Txid: "prev_tx", Vout: 0, PubKey: []byte(tempTx.From)},
+		},
+		Vout: []core.TxOutput{
+			{Value: tempTx.Amount, PubKeyHash: []byte(tempTx.To)},
+		},
+	}
+	tx.SetID()
 
-	// For simplicity, add the transaction data to the next block's data
-	// In a real scenario, transactions would go into a transaction pool
-	// and be included in a block during mining.
-	// Here, we'll just append the transaction details to the last block's data for demonstration.
-	lastBlock := bc.Blocks[len(bc.Blocks)-1]
-	lastBlock.Data += fmt.Sprintf("\nTransaction: From %s To %s Amount %.2f", tx.From, tx.To, tx.Amount)
-
-	c.JSON(http.StatusOK, gin.H{"message": "Transaction received and added to last block (placeholder)", "transaction": tx})
+	// TODO: 实际实现应添加交易到交易池
+	c.JSON(http.StatusOK, gin.H{"message": "Transaction received (placeholder)", "transaction": tx})
 }
 
 // createWallet handles the request to create a new wallet
@@ -109,6 +119,6 @@ func getWallet(c *gin.Context) {
 // getWalletBalance handles the request to get wallet balance
 func getWalletBalance(c *gin.Context, bc *core.Blockchain) { // Accept Blockchain instance
 	address := c.Param("address")
-	balance := bc.GetBalance(address) // Call GetBalance on the blockchain instance
+	balance := bc.GetBalance([]byte(address)) // Convert address to []byte
 	c.JSON(http.StatusOK, gin.H{"address": address, "balance": balance})
 }
